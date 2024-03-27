@@ -1,1 +1,250 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2024 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
 
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+int test;
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+#include "stm32f4xx.h" // Include necessary STM32F4xx header file
+
+int main(void)
+{
+    // System initialization
+    HAL_Init(); // Initialize Hardware Abstraction Layer
+    SystemClock_Config(); // Configure system clock
+
+    // Enable GPIOB and GPIOC peripherals
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+
+    // Configure PB11 for I2C2_SDA
+    GPIOB->MODER |= (1 << 22); // Set alternate function mode (AF)
+    GPIOB->MODER &= ~(1 << 23);
+    GPIOB->OTYPER |= (1 << 11); // Set output type to open-drain
+    GPIOB->AFR[1] |= (1 << 12); // Set alternate function AF1
+
+    // Configure PB13 for I2C2_SCL
+    GPIOB->MODER |= (1 << 26); // Set alternate function mode (AF)
+    GPIOB->MODER &= ~(1 << 27);
+    GPIOB->OTYPER |= (1 << 13); // Set output type to open-drain
+    GPIOB->AFR[1] |= ((1 << 22) | (1 << 20)); // Set alternate function AF5
+
+    // Configure PB14 and PC0 as general purpose output pins
+    GPIOB->MODER |= (1 << 28); // Set PB14 as output
+    GPIOB->MODER &= ~(1 << 29);
+    GPIOC->MODER |= (1 << 0); // Set PC0 as output
+    GPIOC->MODER &= ~(1 << 1);
+
+    // Set output levels high for PB14 and PC0
+    GPIOB->ODR |= (1 << 14);
+    GPIOC->ODR |= (1 << 0);
+
+    // Enable I2C2 peripheral
+    RCC->APB1ENR |= RCC_APB1ENR_I2C2EN;
+
+    // Configure I2C2 timing for 100kHz
+    I2C2->TIMINGR = 0x13;
+
+    // Enable I2C2 peripheral
+    I2C2->CR1 |= I2C_CR1_PE;
+
+    // Set up transaction parameters for writing
+    I2C2->CR2 |= (0x69 << 1);
+    I2C2->CR2 |= (1 << 16); // Number of bytes
+    I2C2->CR2 &= ~(1 << 10); // Write operation
+    I2C2->CR2 |= (1 << 13); // Start bit
+
+    int test = 1; // Variable for testing
+
+    while (test == 1) {
+        HAL_Delay(50); // Delay for stability
+
+        // Check for NACKF flag
+        if (I2C2->ISR & (1 << 4)) {
+            // Handle NACKF flag condition (e.g., check wiring)
+        }
+        // Check for TXIS flag
+        else if (I2C2->ISR & (1 << 1)) {
+            test = 0; // Exit loop on successful transmission
+        }
+    }
+
+    // Write the WHO_AM_I address
+    I2C2->TXDR = 0x0F;
+
+    test = 1; // Reset test variable
+
+    while (test == 1) {
+        if (I2C2->ISR & (1 << 6)) {
+            test = 0; // Exit loop on transfer completion
+        }
+    }
+
+    // Set up transaction parameters for reading
+    I2C2->CR2 |= (0x69 << 1);
+    I2C2->CR2 |= (1 << 16); // Number of bytes
+    I2C2->CR2 |= (1 << 10); // Read operation
+    I2C2->CR2 |= (1 << 13); // Start bit
+
+    test = 1; // Reset test variable
+
+    while (test == 1) {
+        HAL_Delay(50); // Delay for stability
+
+        // Check for NACKF flag
+        if (I2C2->ISR & (1 << 4)) {
+            // Handle NACKF flag condition (e.g., check wiring)
+        }
+        // Check for RXNE flag
+        if (I2C2->ISR & (1 << 2)) {
+            test = 0; // Exit loop on data reception
+        }
+    }
+
+    test = 1; // Reset test variable
+
+    while (test == 1) {
+        if (I2C2->ISR & (1 << 6)) {
+            test = 0; // Exit loop on transfer completion
+        }
+    }
+
+    // Check the received data
+    if (I2C2->RXDR == 0xD3) {
+        // Handle received data (e.g., visual indication)
+    }
+
+    // Set the stop bit
+    I2C2->CR2 |= (1 << 14);
+
+    // Infinite loop
+    while (1) {
+        // User application logic
+    }
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
